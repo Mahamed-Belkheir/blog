@@ -1,4 +1,4 @@
-baseURL = 'https://blog.belkheir.dev/'
+baseURL = '/'
 languageCode = 'en-us'
 title = "Mahamed's Blog"
 theme = "hugo-bearcub"
