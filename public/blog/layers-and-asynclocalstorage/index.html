@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AsyncLocalStorage and Layered Applications in Nodejs | Mahamed&#39;s Blog</title>
+<meta name="title" content="AsyncLocalStorage and Layered Applications in Nodejs" />
+<meta name="description" content="Dealing with cross-cutting concerns in a layered architecture using AsyncLocalStorage" />
+<meta name="author" content=" Mahamed Belkheir" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="http://localhost:1313/blog/layers-and-asynclocalstorage/">
+  <meta property="og:site_name" content="Mahamed&#39;s Blog">
+  <meta property="og:title" content="AsyncLocalStorage and Layered Applications in Nodejs">
+  <meta property="og:description" content="Dealing with cross-cutting concerns in a layered architecture using AsyncLocalStorage">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-12-21T00:00:00+00:00">
+    <meta property="article:modified_time" content="2024-12-21T00:00:00+00:00">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="AsyncLocalStorage and Layered Applications in Nodejs">
+  <meta name="twitter:description" content="Dealing with cross-cutting concerns in a layered architecture using AsyncLocalStorage">
+
+
+  
+  
+  <meta itemprop="name" content="AsyncLocalStorage and Layered Applications in Nodejs">
+  <meta itemprop="description" content="Dealing with cross-cutting concerns in a layered architecture using AsyncLocalStorage">
+  <meta itemprop="datePublished" content="2024-12-21T00:00:00+00:00">
+  <meta itemprop="dateModified" content="2024-12-21T00:00:00+00:00">
+  <meta itemprop="wordCount" content="1151">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>Mahamed&#39;s Blog</h1></a>
+<nav>
+  <a href="/">Home</a>
+
+  <a href="/blog/">Blog</a>
+
+<a href='http://localhost:1313/index.xml'>RSS</a>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>AsyncLocalStorage and Layered Applications in Nodejs</h1>
+<p class="byline">
+  <time datetime='2024-12-21' pubdate>
+    2024-12-21
+  </time>
+  ·  Mahamed Belkheir
+</p>
+
+<content>
+  <p>When reading through code, it&rsquo;s easier to understand when there&rsquo;s only one thing going on, one goal or concern to worry about, that to me, is the main benefit of layered architecture.</p>
+<p>As code bases grow, having one layer to your code doing everything quickly grows uncontrolable, so I&rsquo;ve eventually come to divide my API codebases to the following layers:</p>
+<ul>
+<li>Controllers (Representation layer)</li>
+<li>Usecases (Business logic layer)</li>
+<li>Repositories (Data persistence layer)</li>
+</ul>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#75715e">// an example for the representation layer of an API
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">router</span>.<span style="color:#a6e22e">post</span>( <span style="color:#75715e">// define route method
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#e6db74">&#34;/make-transaction&#34;</span>, <span style="color:#75715e">// and route path
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">authenticationMiddleware</span>, <span style="color:#75715e">// authenticate the user credentials 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">async</span> (<span style="color:#a6e22e">req</span>, <span style="color:#a6e22e">res</span>) <span style="color:#f92672">=&gt;</span> 
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// validate payload coming from outside the system
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">payload</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">MakeTransactionSchema</span>.<span style="color:#a6e22e">validate</span>(<span style="color:#a6e22e">req</span>.<span style="color:#a6e22e">body</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// offload any thinking to the business layer
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">result</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">businessLayer</span>.<span style="color:#a6e22e">makeTransaction</span>(<span style="color:#a6e22e">req</span>.<span style="color:#a6e22e">user</span>, <span style="color:#a6e22e">payload</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// control response structure
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">json</span>({
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">status</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;success&#34;</span>,
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">data</span>: <span style="color:#66d9ef">result</span>
+</span></span><span style="display:flex;"><span>            });
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>)</span></span></code></pre></div><p>So in the previous example we defined a representation layer concerned about how our API is used, rather than what it actually does, if we are required to make changes to allow users to pay transactions even if they don&rsquo;t have money, we know we won&rsquo;t be passing by the routers.</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#75715e">// a (terrible) example of a bank&#39;s business layer
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// defining what the input for the layer is
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">function</span> <span style="color:#a6e22e">makeTransaction</span>(<span style="color:#a6e22e">user</span>: <span style="color:#66d9ef">User</span>, <span style="color:#a6e22e">transactionRequest</span>: <span style="color:#66d9ef">TransactionRequest</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// fetching relevant data from the data layer without worrying about how it&#39;s done
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">userBankAccount</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">findOneOrFail</span>({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">ownerId</span>: <span style="color:#66d9ef">user.id</span>, 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">transactionRequest.fromAccountNumber</span>
+</span></span><span style="display:flex;"><span>        })
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">targetBankAccount</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">findOneOrFail</span>({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">transactionRequest.toAccountNumber</span>
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// simplified business logic for an internal bank transfer
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">-=</span> <span style="color:#a6e22e">transactionRequest</span>.<span style="color:#a6e22e">amount</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">&lt;</span> <span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">overDraftLimit</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">InsufficientFundsError</span>();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">targetBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">+=</span> <span style="color:#a6e22e">transactionRequest</span>.<span style="color:#a6e22e">amount</span>;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// save changes back to data persistence layer, without worrying how exactly
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">save</span>(<span style="color:#a6e22e">userBankAccount</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">save</span>(<span style="color:#a6e22e">targetBankAccount</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// return relevant data to representation layer, in this case the new balance
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">return</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">userBankAccount.accountNumber</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">newCreditAmount</span>: <span style="color:#66d9ef">userBankAccount.credit</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * A real banking backend would use double entry booking and would credit/debit amounts on accounts, instead of directly manipulating the values. and would run fraud detection, compliance checks, etc before commiting
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span></span></span></code></pre></div><p>In the above example we defined a bank transfer&rsquo;s business layer, where we do not care how the API request arrives, or how the database is interacted with, our persistence could be an SQL DB, a DocumentDB or another service we call out to.</p>
+<p>For the data persistence layer, an ORM or a class with SQL queries would suffice for now, we will explore a need for a custom one later in this post.</p>
+<p>Now one problem with our approach is transactions, the business layer should not be aware of data layer specifics as much as possible, but transactions are important enough to break this consideration.</p>
+<p>One approach is to let the business layer start a transaction and pass the transaction reference to each data layer call</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">function</span> <span style="color:#a6e22e">makeTransaction</span>(<span style="color:#a6e22e">user</span>: <span style="color:#66d9ef">User</span>, <span style="color:#a6e22e">transactionRequest</span>: <span style="color:#66d9ef">TransactionRequest</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">trx</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">startTransaction</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">userBankAccount</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">findOneOrFail</span>({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">ownerId</span>: <span style="color:#66d9ef">user.id</span>, 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">transactionRequest.fromAccountNumber</span>
+</span></span><span style="display:flex;"><span>        }, <span style="color:#a6e22e">trx</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">targetBankAccount</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">findOneOrFail</span>({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">transactionRequest.toAccountNumber</span>
+</span></span><span style="display:flex;"><span>    }, <span style="color:#a6e22e">trx</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">-=</span> <span style="color:#a6e22e">transactionRequest</span>.<span style="color:#a6e22e">amount</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">&lt;</span> <span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">overDraftLimit</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">InsufficientFundsError</span>();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">targetBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">+=</span> <span style="color:#a6e22e">transactionRequest</span>.<span style="color:#a6e22e">amount</span>;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">save</span>(<span style="color:#a6e22e">userBankAccount</span>, <span style="color:#a6e22e">trx</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">save</span>(<span style="color:#a6e22e">targetBankAccount</span>, <span style="color:#a6e22e">trx</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">trx</span>.<span style="color:#a6e22e">commit</span>()
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">userBankAccount.accountNumber</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">newCreditAmount</span>: <span style="color:#66d9ef">userBankAccount.credit</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}</span></span></code></pre></div><p>This approach works, but it has some consequences:</p>
+<ul>
+<li>You must tediously pass around the transaction reference, and every function from the database layer must accomodate it as a parameter</li>
+<li>if your data layer allows operating without transactions (e.g. trx is an optional paramater), it can be easy to miss a call, having parts of your queries operate outside of your transaction can be disasterous</li>
+<li>if you start abstracting your business layer into more functions, you&rsquo;ll need to pass the transaction around to other service functions</li>
+</ul>
+<p>And generally, aside from starting and ending the transaction, the business layer has NO interactions with the transaction itself, aside from passing it around, being given an option where the only answer you&rsquo;re supposed to say is &ldquo;Yes&rdquo; is not an &ldquo;option&rdquo; I want to have.</p>
+<p>One way to go about sharing cross cutting concerns like transactions is <a href="https://nodejs.org/api/async_context.html#class-asynclocalstorage">AsyncLocalStorage</a>, in short, it offers you a way to set a value, go down into multiple calls down your callstack, and retrieve that same value. It solves the problem where global values are shared between requests in Nodejs, ASL values can be considered &ldquo;globals&rdquo; inside one request.</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">export</span> <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">trxStorage</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">AsyncLocalStorage</span>&lt;<span style="color:#f92672">Transaction</span>&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">export</span> <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">startTrx</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">async</span> &lt;<span style="color:#f92672">T</span>&gt;(<span style="color:#a6e22e">cb</span><span style="color:#f92672">:</span> () <span style="color:#f92672">=&gt;</span> <span style="color:#a6e22e">T</span> )<span style="color:#f92672">:</span> <span style="color:#a6e22e">T</span> <span style="color:#f92672">=&gt;</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">trx</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">startTransaction</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">result</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">trxStorage</span>.<span style="color:#a6e22e">start</span>(<span style="color:#a6e22e">trx</span>, <span style="color:#a6e22e">cb</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">trx</span>.<span style="color:#a6e22e">commit</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">result</span>;
+</span></span><span style="display:flex;"><span>}</span></span></code></pre></div><p>Here we setup the ASL instance, and provide a helper to start transactions, set the async local storage context, and commit the transaction before returning the result, we can now refactor our business layer to make use of this.</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">function</span> <span style="color:#a6e22e">makeTransaction</span>(<span style="color:#a6e22e">user</span>: <span style="color:#66d9ef">User</span>, <span style="color:#a6e22e">transactionRequest</span>: <span style="color:#66d9ef">TransactionRequest</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">startTrx</span>(<span style="color:#66d9ef">async</span> () <span style="color:#f92672">=&gt;</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// anything inside this callback is now able to use trxStorage.getStore() to access the same transaction object
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">userBankAccount</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">findOneOrFail</span>({
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">ownerId</span>: <span style="color:#66d9ef">user.id</span>, 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">transactionRequest.fromAccountNumber</span>
+</span></span><span style="display:flex;"><span>            })
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">targetBankAccount</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">findOneOrFail</span>({
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">transactionRequest.toAccountNumber</span>
+</span></span><span style="display:flex;"><span>        });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">-=</span> <span style="color:#a6e22e">transactionRequest</span>.<span style="color:#a6e22e">amount</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">&lt;</span> <span style="color:#a6e22e">userBankAccount</span>.<span style="color:#a6e22e">overDraftLimit</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">InsufficientFundsError</span>();
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">targetBankAccount</span>.<span style="color:#a6e22e">credit</span> <span style="color:#f92672">+=</span> <span style="color:#a6e22e">transactionRequest</span>.<span style="color:#a6e22e">amount</span>;
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">save</span>(<span style="color:#a6e22e">userBankAccount</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">bankAccount</span>.<span style="color:#a6e22e">save</span>(<span style="color:#a6e22e">targetBankAccount</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">accountNumber</span>: <span style="color:#66d9ef">userBankAccount.accountNumber</span>,
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">newCreditAmount</span>: <span style="color:#66d9ef">userBankAccount.credit</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>}</span></span></code></pre></div><p>In this approach we no longer fear missing out on passing the transaction to the repository layer, and can share the transaction transparently between different functions without changing the parameters.</p>
+<p>But we&rsquo;re not done yet, most nodejs ORMs, query builder and db clients do not support ASL out of the box for transactions, thus a need to wrap them arises, this is where a repository layer pays off.</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">export</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">BankAccountRepository</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">protected</span> <span style="color:#a6e22e">q() {</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">trx</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">trxStorage</span>.<span style="color:#a6e22e">getStore</span>();
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">query</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">queryBuilder</span>();
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">trx</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">query</span>.<span style="color:#a6e22e">transacting</span>(<span style="color:#a6e22e">trx</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">query</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">async</span> <span style="color:#a6e22e">findOneOrFail</span>(<span style="color:#a6e22e">bankAccountDetails</span>: <span style="color:#66d9ef">Partial</span>&lt;<span style="color:#f92672">BankAccountNumber</span>&gt;) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">data</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">q</span>().<span style="color:#a6e22e">where</span>(<span style="color:#a6e22e">bankAccountDetails</span>).<span style="color:#a6e22e">first</span>();
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">data</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">BankAccountNotFoundError</span>();
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">data</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}</span></span></code></pre></div><p>With this, we&rsquo;re able to start to share transactions across our codebase transparently, while centralizing how to start and handle transactions,
+we&rsquo;re able to modify the startTrx function and add more error handling, for example, re-trying transactions when they fail due to a race condition.</p>
+<p>for a more fleshed out example, you can checkout my <a href="https://github.com/Mahamed-Belkheir/nodejs-api-template">nodejs api template</a>, which is very opinionated, but it show cases the following examples:</p>
+<ul>
+<li><a href="https://github.com/Mahamed-Belkheir/nodejs-api-template/blob/main/src/usecases/auth/user.ts#L19">Using the transaction starter utility</a></li>
+<li><a href="https://github.com/Mahamed-Belkheir/nodejs-api-template/blob/main/src/db/trx.ts">The transaction context</a></li>
+<li><a href="https://github.com/Mahamed-Belkheir/nodejs-api-template/blob/main/src/db/repository.ts">The base repository using the transaction</a></li>
+</ul>
+<hr>
+<p>Transaction tracking is just one usecase, a lot of cross cutting concerns are annoying to deal with traditionally, two usecases I&rsquo;ve found useful are multi-tenancy tracking, in the same vein as tracking the current transaction and setting queries to use it, we are able to check the current user&rsquo;s tenant and scope queries to it automatically.</p>
+<p>We&rsquo;re also able to set request specific information, like traceIds, and log them everywhere inside the application, without having to pass around a request context god object including everything going on currently with the request.</p>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer><small>
+   | 
+</small></footer>
+
+    
+</body>
+
+</html>
